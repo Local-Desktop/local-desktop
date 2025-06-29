@@ -64,6 +64,7 @@ features = [
     "wayland-server",
     "renderer_glow",
     "wayland_frontend",
+    "desktop",
 ]
 
 [patch.crates-io]

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::{style, Term};
+use std::io::ErrorKind;
 use std::process::Command;
 use std::time::Instant;
 
@@ -81,20 +82,58 @@ pub fn run(mut command: Command, verbose: bool) -> Result<()> {
         };
         println!("{} {} {} {}", style("[ERROR]").red(), program, args, status);
     }
-    if !verbose {
-        let output = command.output()?;
-        if !output.status.success() {
-            print_error(&command, output.status.code());
-            let stdout = std::str::from_utf8(&output.stdout)?;
-            print!("{}", stdout);
-            let stderr = std::str::from_utf8(&output.stderr)?;
-            print!("{}", stderr);
-            std::process::exit(1);
-        }
+
+    let program = command.get_program().to_string_lossy().to_string();
+    let args = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let result = if !verbose {
+        command.output()
     } else {
-        let status = command.status()?;
-        if !status.success() {
-            print_error(&command, status.code());
+        command.status().map(|status| {
+            use std::process::Output;
+            // Fake Output for compatibility
+            Output {
+                status,
+                stdout: vec![],
+                stderr: vec![],
+            }
+        })
+    };
+
+    match result {
+        Ok(output) => {
+            if !output.status.success() {
+                print_error(&command, output.status.code());
+                if !verbose {
+                    let stdout = std::str::from_utf8(&output.stdout)?;
+                    print!("{}", stdout);
+                    let stderr = std::str::from_utf8(&output.stderr)?;
+                    print!("{}", stderr);
+                }
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            if e.kind() == ErrorKind::NotFound {
+                eprintln!(
+                    "{} Command not found: {} {}",
+                    style("[ERROR]").red(),
+                    program,
+                    args
+                );
+            } else {
+                eprintln!(
+                    "{} Failed to execute '{} {}': {}",
+                    style("[ERROR]").red(),
+                    program,
+                    args,
+                    e
+                );
+            }
             std::process::exit(1);
         }
     }

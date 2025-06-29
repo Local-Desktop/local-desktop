@@ -1,13 +1,12 @@
-use crate::utils::{logging::PolarBearExpectation, socket::bind_socket};
-use smithay::reexports::wayland_server::{
-    backend::{ClientData, ClientId, DisconnectReason},
-    protocol::{wl_buffer, wl_surface::WlSurface},
-    Client, ListeningSocket,
+use crate::{
+    utils::{logging::PolarBearExpectation, socket::bind_socket},
+    wayland::element::WindowElement,
 };
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
     delegate_xdg_shell,
+    desktop::Space,
     input::{self, keyboard::KeyboardHandle, touch::TouchHandle, Seat, SeatHandler, SeatState},
     output::Output,
     reexports::{
@@ -34,6 +33,14 @@ use smithay::{
         shm::{ShmHandler, ShmState},
     },
 };
+use smithay::{
+    input::pointer::PointerHandle,
+    reexports::wayland_server::{
+        backend::{ClientData, ClientId, DisconnectReason},
+        protocol::{wl_buffer, wl_surface::WlSurface},
+        Client, ListeningSocket,
+    },
+};
 use std::{error::Error, os::unix::io::OwnedFd, time::Instant};
 
 pub struct Compositor {
@@ -45,6 +52,7 @@ pub struct Compositor {
     pub seat: Seat<State>,
     pub keyboard: KeyboardHandle<State>,
     pub touch: TouchHandle<State>,
+    pub pointer: PointerHandle<State>,
     pub output: Option<Output>,
 }
 
@@ -55,6 +63,7 @@ pub struct State {
     pub data_device_state: DataDeviceState,
     pub seat_state: SeatState<Self>,
     pub size: Size<i32, Logical>,
+    pub space: Space<WindowElement>,
 }
 
 impl BufferHandler for State {
@@ -205,6 +214,7 @@ impl Compositor {
             .add_keyboard(Default::default(), 1000, 200)
             .pb_expect("Failed to add keyboard");
         let touch = seat.add_touch();
+        let pointer = seat.add_pointer();
 
         let state = State {
             compositor_state: CompositorState::new::<State>(&dh),
@@ -213,6 +223,7 @@ impl Compositor {
             data_device_state: DataDeviceState::new::<State>(&dh),
             seat_state,
             size: (1920, 1080).into(),
+            space: Space::default(),
         };
 
         Ok(Compositor {
@@ -224,6 +235,7 @@ impl Compositor {
             seat,
             keyboard,
             touch,
+            pointer,
             output: None,
         })
     }

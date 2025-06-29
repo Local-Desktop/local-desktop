@@ -41,11 +41,16 @@ fn android_main(android_app: AndroidApp) {
             _ => LogFilter::Log,
         }
     });
-    log::set_boxed_logger(Box::new(logger)).pb_expect("Failed to set Sentry logger");
+
     #[cfg(debug_assertions)] // Enable verbose logging in debug builds
-    log::set_max_level(log::LevelFilter::Trace);
+    let log_level = log::LevelFilter::Trace;
     #[cfg(not(debug_assertions))]
-    log::set_max_level(log::LevelFilter::Info);
+    let log_level = log::LevelFilter::Info;
+    if log::set_boxed_logger(Box::new(logger)).is_ok() {
+        log::set_max_level(log_level);
+    } else {
+        android_logger::init_once(android_logger::Config::default().with_max_level(log_level));
+    }
 
     ApplicationContext::build(&android_app);
 
